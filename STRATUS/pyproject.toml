@@ -1,0 +1,56 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "stratus"
+version = "0.1.0"
+description = "STRATUS radiative-transfer toolkit with neural operators and Monte Carlo solvers"
+readme = "README.md"
+requires-python = ">=3.9"
+authors = [{ name = "STRATUS Contributors" }]
+dependencies = [
+    "torch>=2.0",
+    "numpy",
+]
+
+[project.optional-dependencies]
+dataset = ["h5py", "netCDF4"]
+export = ["onnx"]
+monitoring = ["psutil", "GPUtil"]
+mie = ["scipy"]
+dev = [
+    "pytest",
+    "pytest-cov",
+    "ruff",
+    "black",
+    "mypy",
+    "types-protobuf",
+    "types-psutil",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["stratus"]
+
+[tool.pytest.ini_options]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "C4", "UP"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["stratus"]
+
+[tool.black]
+line-length = 100
+target-version = ["py39"]
+
+[tool.mypy]
+python_version = "3.9"
+strict = false
+packages = ["stratus"]
+ignore_missing_imports = true

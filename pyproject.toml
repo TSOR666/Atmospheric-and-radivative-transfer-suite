@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "psuite-tools"
+version = "0.1.0"
+description = "Partner suite tools (validators, MDNO/RTNO operators, API CLI) for atmospheric modelling"
+readme = "README.md"
+requires-python = ">=3.9"
+authors = [{ name = "Contributors" }]
+dependencies = [
+  "xarray>=2023.0",
+  "torch>=2.0",
+  "numpy>=1.22",
+  "fastapi>=0.110",
+  "uvicorn[standard]>=0.27",
+  "pydantic>=2.6",
+  "prometheus-client>=0.19",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest",
+  "pytest-cov",
+]
+
+[project.scripts]
+psuite-validate = "validators.cf_schema:cli"
+
+[tool.setuptools.package-dir]
+validators = "validators"
+mdno = "MDNO/mdno_rtno/mdno"
+rtno = "MDNO/mdno_rtno/rtno"
+physics = "MDNO/mdno_rtno/physics"
+mdno_rtno = "MDNO/mdno_rtno"
+
+[tool.setuptools.packages.find]
+where = [".", "MDNO/mdno_rtno"]
+include = ["validators", "mdno", "rtno", "physics", "mdno_rtno"]

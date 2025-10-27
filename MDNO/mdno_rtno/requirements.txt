@@ -1,0 +1,17 @@
+# Core numerical frameworks
+torch==2.1.2
+numpy==1.26.4
+scipy==1.11.4
+
+# API service
+fastapi==0.110.1
+uvicorn[standard]==0.27.1
+pydantic==2.6.4
+prometheus-client==0.19.0
+
+# Testing
+pytest==8.1.1
+httpx==0.27.0
+
+# Optional utilities used across modules
+starlette==0.36.3

@@ -1,0 +1,24 @@
+# Recipe: CAMS gases/aerosols + geometry -> polarized columns
+#
+# Blueprint stub for generating vector/polarized labels via libRadtran/DISORT.
+
+dataset:
+  type: netcdf
+  input_paths:
+    - /data/cams/sample.nc
+  variables:
+    - gases: [H2O, CO2, O3]
+    - aerosols: [mode1, mode2]
+    - geometry: [SZA, VZA, RAA]
+
+labels:
+  adapter: libradtran
+  config_template: /opt/libradtran/templates/polarized.inp
+
+training:
+  target: rt_vector_stokes
+  SH_order: 3
+  batch_size: 4
+  epochs: 3
+  skip_if_missing_optional: true
+

@@ -1,0 +1,26 @@
+# Recipe: ERA5-like state -> RRTMGP scalar parity labels
+#
+# This is a blueprint stub. Fill paths/variables to match your environment.
+
+dataset:
+  type: netcdf
+  input_paths:
+    - /data/era5/sample.nc
+  variables:
+    - u
+    - v
+    - w
+    - T
+    - q
+    - surface_pressure
+
+labels:
+  adapter: rrtmgp
+  gas_optics_table: /opt/rrtmgp/tables/gas_optics.nc
+
+training:
+  target: rt_scalar_fluxes
+  batch_size: 8
+  epochs: 5
+  skip_if_missing_optional: true
+

@@ -1,0 +1,12 @@
+# Recipe: Monthly 1 deg flux closure vs CERES (diagnostics)
+
+dataset:
+  type: netcdf
+  input_paths:
+    - /data/reanalysis/monthly_1deg.nc
+
+diagnostics:
+  target: flux_closure
+  reference: /data/ceres/fluxes_monthly_1deg.nc
+  metrics: [bias, rmse]
+  skip_if_missing_optional: true

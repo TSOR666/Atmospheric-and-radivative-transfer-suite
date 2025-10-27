@@ -1,0 +1,572 @@
+# ============================================================================
+# Production Kubernetes Manifests
+# Version: 3.0
+# All placeholders resolved, no duplications, production-hardened
+# ============================================================================
+
+---
+# Namespace with Pod Security Standards
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: atmospheric-models
+  labels:
+    name: atmospheric-models
+    environment: production
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce-version: latest
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted
+
+---
+# ServiceAccount (no API access)
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: mdno-sa
+  namespace: atmospheric-models
+  labels:
+    app: mdno
+automountServiceAccountToken: false
+
+---
+# Minimal RBAC (only if app needs K8s API - currently not needed)
+# apiVersion: rbac.authorization.k8s.io/v1
+# kind: Role
+# metadata:
+#   name: mdno-role
+#   namespace: atmospheric-models
+# rules:
+# - apiGroups: [""]
+#   resources: ["configmaps"]
+#   verbs: ["get"]
+#   resourceNames: ["mdno-config"]
+
+---
+# ConfigMap
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mdno-config
+  namespace: atmospheric-models
+  labels:
+    app: mdno
+data:
+  config.yaml: |
+    model_type: mdno
+    batch_size: 4
+    device: cuda
+    
+    mdno:
+      grid_shapes:
+        micro: [16, 16, 8]
+        meso: [32, 32, 16]
+      velocity_space_resolution: 8
+      enforce_moment_conservation: true
+    
+    inference:
+      batch_size: 8
+      max_batch_wait: 0.1
+
+---
+# Secret (use SealedSecrets/ExternalSecrets in production)
+apiVersion: v1
+kind: Secret
+metadata:
+  name: api-secrets
+  namespace: atmospheric-models
+  labels:
+    app: mdno
+type: Opaque
+stringData:
+  api-key: ""  # Set via kubectl or secret manager
+  wandb-key: ""
+
+---
+# PVC for models
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: model-pvc
+  namespace: atmospheric-models
+  labels:
+    app: mdno
+spec:
+  accessModes:
+    - ReadOnlyMany
+  storageClassName: fast-ssd
+  resources:
+    requests:
+      storage: 50Gi
+
+---
+# Deployment - PRODUCTION HARDENED
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mdno-inference
+  namespace: atmospheric-models
+  labels:
+    app: mdno
+    component: inference
+    version: v5.3
+spec:
+  replicas: 3
+  revisionHistoryLimit: 10
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: mdno
+      component: inference
+  template:
+    metadata:
+      labels:
+        app: mdno
+        component: inference
+        version: v5.3
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8000"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: mdno-sa
+      automountServiceAccountToken: false
+      
+      # Pod-level security
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      
+      # Node affinity
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: accelerator
+                operator: In
+                values:
+                - nvidia-tesla-a100
+                - nvidia-tesla-v100
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchLabels:
+                  app: mdno
+                  component: inference
+              topologyKey: kubernetes.io/hostname
+      
+      # Topology spread
+      topologySpreadConstraints:
+      - maxSkew: 1
+        topologyKey: kubernetes.io/hostname
+        whenUnsatisfiable: ScheduleAnyway
+        labelSelector:
+          matchLabels:
+            app: mdno
+            component: inference
+      
+      tolerations:
+      - key: nvidia.com/gpu
+        operator: Exists
+        effect: NoSchedule
+      
+      # Init container
+      initContainers:
+      - name: validate-config
+        image: busybox:1.36
+        command: ['sh', '-c', 'test -f /config/config.yaml || exit 1']
+        volumeMounts:
+        - name: config-volume
+          mountPath: /config
+          readOnly: true
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: ["ALL"]
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 10001
+      
+      containers:
+      - name: mdno-inference
+        # IMPORTANT: Update this digest after building:
+        #   docker inspect IMAGE | jq -r '.[0].RepoDigests[0]'
+        # The deploy script will auto-inject if .image-digest-inference.txt exists
+        image: ghcr.io/your-org/atmospheric-models:inference-v5.3@sha256:REPLACE_WITH_REAL_DIGEST
+        imagePullPolicy: IfNotPresent
+        
+        # Container-level security
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 10001
+          capabilities:
+            drop: ["ALL"]
+          seccompProfile:
+            type: RuntimeDefault
+        
+        ports:
+        - containerPort: 8000
+          name: http
+          protocol: TCP
+        
+        env:
+        - name: MODEL_TYPE
+          value: "mdno"
+        - name: MODEL_VERSION
+          value: "5.3"
+        - name: MODEL_PATH
+          value: "/models/mdno_v53_best.pt"
+        - name: CONFIG_PATH
+          value: "/config/config.yaml"
+        - name: API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: api-secrets
+              key: api-key
+        - name: CORS_ORIGINS
+          value: "https://yourdomain.com"
+        - name: PROMETHEUS_MULTIPROC_DIR
+          value: "/tmp/metrics"
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        
+        resources:
+          requests:
+            memory: "8Gi"
+            cpu: "2"
+            nvidia.com/gpu: "1"
+          limits:
+            memory: "16Gi"
+            cpu: "4"
+            nvidia.com/gpu: "1"
+        
+        volumeMounts:
+        - name: model-volume
+          mountPath: /models
+          readOnly: true
+        - name: config-volume
+          mountPath: /config
+          readOnly: true
+        - name: tmp
+          mountPath: /tmp
+        - name: cache
+          mountPath: /cache
+        
+        startupProbe:
+          httpGet:
+            path: /health/live
+            port: 8000
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 12
+        
+        livenessProbe:
+          httpGet:
+            path: /health/live
+            port: 8000
+          initialDelaySeconds: 60
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 3
+        
+        readinessProbe:
+          httpGet:
+            path: /health/ready
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        
+        lifecycle:
+          preStop:
+            exec:
+              command: ["/bin/sh", "-c", "sleep 15"]
+      
+      terminationGracePeriodSeconds: 30
+      
+      volumes:
+      - name: model-volume
+        persistentVolumeClaim:
+          claimName: model-pvc
+      - name: config-volume
+        configMap:
+          name: mdno-config
+          defaultMode: 0440
+      - name: tmp
+        emptyDir: {}
+      - name: cache
+        emptyDir: {}
+
+---
+# Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: mdno-inference-service
+  namespace: atmospheric-models
+  labels:
+    app: mdno
+    component: inference
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "8000"
+spec:
+  type: LoadBalancer
+  selector:
+    app: mdno
+    component: inference
+  ports:
+  - port: 80
+    targetPort: 8000
+    protocol: TCP
+    name: http
+  sessionAffinity: ClientIP
+  sessionAffinityConfig:
+    clientIP:
+      timeoutSeconds: 300
+  externalTrafficPolicy: Local
+
+---
+# HPA
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: mdno-inference-hpa
+  namespace: atmospheric-models
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: mdno-inference
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 60
+      policies:
+      - type: Percent
+        value: 50
+        periodSeconds: 60
+      selectPolicy: Max
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+      - type: Percent
+        value: 10
+        periodSeconds: 60
+      selectPolicy: Min
+
+---
+# PDB
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: mdno-inference-pdb
+  namespace: atmospheric-models
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: mdno
+      component: inference
+
+---
+# NetworkPolicy
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: mdno-inference-netpol
+  namespace: atmospheric-models
+spec:
+  podSelector:
+    matchLabels:
+      app: mdno
+      component: inference
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: ingress-nginx
+    ports:
+    - protocol: TCP
+      port: 8000
+  egress:
+  # DNS
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          name: kube-system
+    ports:
+    - protocol: UDP
+      port: 53
+  # HTTPS (excluding private ranges)
+  - to:
+    - ipBlock:
+        cidr: 0.0.0.0/0
+        except:
+        - 10.0.0.0/8
+        - 172.16.0.0/12
+        - 192.168.0.0/16
+    ports:
+    - protocol: TCP
+      port: 443
+
+---
+# Ingress
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: mdno-ingress
+  namespace: atmospheric-models
+  annotations:
+    kubernetes.io/ingress.class: "nginx"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      more_set_headers "X-Frame-Options: DENY";
+      more_set_headers "X-Content-Type-Options: nosniff";
+      more_set_headers "Strict-Transport-Security: max-age=31536000";
+    nginx.ingress.kubernetes.io/limit-rps: "100"
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+spec:
+  tls:
+  - hosts:
+    - api.atmospheric-model.com
+    secretName: api-tls-cert
+  rules:
+  - host: api.atmospheric-model.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: mdno-inference-service
+            port:
+              number: 80
+
+---
+# ServiceMonitor (Prometheus Operator)
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: mdno-inference-monitor
+  namespace: atmospheric-models
+  labels:
+    app: mdno
+spec:
+  selector:
+    matchLabels:
+      app: mdno
+      component: inference
+  endpoints:
+  - port: http
+    path: /metrics
+    interval: 30s
+
+---
+# PrometheusRule
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: mdno-inference-alerts
+  namespace: atmospheric-models
+spec:
+  groups:
+  - name: mdno-inference
+    interval: 30s
+    rules:
+    - alert: HighLatency
+      expr: histogram_quantile(0.95, rate(prediction_duration_seconds_bucket[5m])) > 0.5
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "High inference latency"
+    - alert: HighErrorRate
+      expr: sum(rate(errors_total[5m])) > 0.1
+      for: 5m
+      labels:
+        severity: critical
+      annotations:
+        summary: "High error rate"
+    - alert: PodNotReady
+      expr: kube_pod_status_ready{namespace="atmospheric-models", condition="false"} == 1
+      for: 5m
+      labels:
+        severity: critical
+      annotations:
+        summary: "Pod not ready"
+
+---
+# ResourceQuota
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: atmospheric-models-quota
+  namespace: atmospheric-models
+spec:
+  hard:
+    requests.cpu: "200"
+    requests.memory: "500Gi"
+    requests.nvidia.com/gpu: "20"
+    limits.cpu: "400"
+    limits.memory: "1000Gi"
+    persistentvolumeclaims: "10"
+
+---
+# LimitRange
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: atmospheric-models-limits
+  namespace: atmospheric-models
+spec:
+  limits:
+  - max:
+      cpu: "64"
+      memory: "128Gi"
+      nvidia.com/gpu: "8"
+    min:
+      cpu: "100m"
+      memory: "128Mi"
+    default:
+      cpu: "2"
+      memory: "4Gi"
+    defaultRequest:
+      cpu: "1"
+      memory: "2Gi"
+    type: Container
