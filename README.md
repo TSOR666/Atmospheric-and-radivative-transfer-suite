@@ -12,7 +12,7 @@ The Atmospheric and Radiative Transfer Suite bundles two complementary toolkits:
 
 Use this repository when you need both advanced atmospheric dynamics powered by neural operators and a configurable radiative-transfer engine.
 
-> **📖 New to the physics?** See the [Model Physics and Mathematics Wiki](../../wiki/Model-Physics-and-Mathematics) for detailed mathematical derivations covering the Boltzmann equation, Navier-Stokes dynamics, radiative transfer theory, polarization, and numerical methods.
+> **📖 New to the physics?** See the [Model Physics and Mathematics Wiki](https://github.com/TSOR666/Atmospheric-and-radivative-transfer-suite/wiki/Model%E2%80%90Physics%E2%80%90and%E2%80%90Mathematics) for detailed mathematical derivations covering the Boltzmann equation, Navier-Stokes dynamics, radiative transfer theory, polarization, and numerical methods.
 
 ## Repository Layout
 
@@ -35,7 +35,7 @@ Use this repository when you need both advanced atmospheric dynamics powered by 
 - `adapters/` - parity adapters for RRTMGP and libRadtran/DISORT
 - `configs/` - training recipes and partner blueprints
 - `docs/` - data schema and supporting documentation
-  - `wiki/` - comprehensive mathematical documentation (also available as [GitHub Wiki](../../wiki))
+  - `wiki/` - comprehensive mathematical documentation (also available as [GitHub Wiki](https://github.com/TSOR666/Atmospheric-and-radivative-transfer-suite/wiki))
 
 ## System Requirements
 
@@ -166,7 +166,7 @@ In return we offer co-authorship opportunities (arXiv/JOSS), joint announcements
 
 ## Documentation
 
-- **[Wiki: Model Physics and Mathematics](../../wiki/Model-Physics-and-Mathematics)** - comprehensive mathematical formulations, physical equations, and computational methods for MDNO v5.3, RTNO v4.3, and STRATUS
+- **[Wiki: Model Physics and Mathematics](https://github.com/TSOR666/Atmospheric-and-radivative-transfer-suite/wiki/Model%E2%80%90Physics%E2%80%90and%E2%80%90Mathematics)** - comprehensive mathematical formulations, physical equations, and computational methods for MDNO v5.3, RTNO v4.3, and STRATUS
 - `STRATUS/README.md` - physics derivations, configuration, end-to-end examples, Monte Carlo and PINN variants
 - `MDNO/mdno_rtno/README.md` - unified framework, mathematical background, programmatic usage, deployment artefacts
 - `docs/data_schema.md` - CF/NetCDF expectations and invariants
@@ -178,5 +178,3 @@ If you use this project, please credit:
 - Thierry Silvio Claude Soreze
 
 Cite STRATUS and/or MDNO/RTNO according to your venue's guidelines.
-
-
