@@ -1,4 +1,4 @@
-﻿# Atmospheric and Radiative Transfer Suite
+# Atmospheric and Radiative Transfer Suite
 
 [![CI](https://github.com/tsor/atmospheric-radiative-transfer-suite/actions/workflows/ci.yml/badge.svg)](https://github.com/tsor/atmospheric-radiative-transfer-suite/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/tsor/atmospheric-radiative-transfer-suite/branch/main/graph/badge.svg)](https://codecov.io/gh/tsor/atmospheric-radiative-transfer-suite)
@@ -11,6 +11,8 @@ The Atmospheric and Radiative Transfer Suite bundles two complementary toolkits:
 - **STRATUS** - a modular radiative-transfer framework featuring volumetric ray marching, polarization (Stokes vectors, Mueller calculus), Monte Carlo transport, spherical harmonics, and a physics-informed neural network solver.
 
 Use this repository when you need both advanced atmospheric dynamics powered by neural operators and a configurable radiative-transfer engine.
+
+> **📖 New to the physics?** See the [Model Physics and Mathematics Wiki](../../wiki/Model-Physics-and-Mathematics) for detailed mathematical derivations covering the Boltzmann equation, Navier-Stokes dynamics, radiative transfer theory, polarization, and numerical methods.
 
 ## Repository Layout
 
@@ -33,6 +35,7 @@ Use this repository when you need both advanced atmospheric dynamics powered by 
 - `adapters/` - parity adapters for RRTMGP and libRadtran/DISORT
 - `configs/` - training recipes and partner blueprints
 - `docs/` - data schema and supporting documentation
+  - `wiki/` - comprehensive mathematical documentation (also available as [GitHub Wiki](../../wiki))
 
 ## System Requirements
 
@@ -163,6 +166,7 @@ In return we offer co-authorship opportunities (arXiv/JOSS), joint announcements
 
 ## Documentation
 
+- **[Wiki: Model Physics and Mathematics](../../wiki/Model-Physics-and-Mathematics)** - comprehensive mathematical formulations, physical equations, and computational methods for MDNO v5.3, RTNO v4.3, and STRATUS
 - `STRATUS/README.md` - physics derivations, configuration, end-to-end examples, Monte Carlo and PINN variants
 - `MDNO/mdno_rtno/README.md` - unified framework, mathematical background, programmatic usage, deployment artefacts
 - `docs/data_schema.md` - CF/NetCDF expectations and invariants
